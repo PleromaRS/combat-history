@@ -88,6 +88,25 @@ public class CombatTracker {
         Actor target = localPlayer.getInteracting();
         String targetName = (target != null) ? target.getName() : "None";
 
+        int relativeTick = client.getTickCount() - currentSession.getStartTick() + 1;
+
+        List<Integer> dealtAmounts = new ArrayList<>();
+        List<Integer> receivedAmounts = new ArrayList<>();
+
+        for (HitsplatData h : currentTickHitsplats) {
+            if (h.isIncoming()) {
+                receivedAmounts.add(h.getAmount());
+            } else {
+                dealtAmounts.add(h.getAmount());
+            }
+        }
+
+        String dealtStr = dealtAmounts.isEmpty() ? "[]" : dealtAmounts.toString();
+        String receivedStr = receivedAmounts.isEmpty() ? "[]" : receivedAmounts.toString();
+
+        log.info(String.format("[Tick %2d] Dealt: %-6s | Received: %-6s | Current Target: %s",
+                relativeTick, dealtStr, receivedStr, targetName));
+
         TickRecord record = new TickRecord(client.getTickCount(), targetName);
 
         for (HitsplatData h : currentTickHitsplats) {

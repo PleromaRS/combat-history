@@ -24,7 +24,7 @@ public class CombatSession {
 
     public int getStartTick() { return startTick; }
     public int getEndTick() { return endTick; }
-    public int getDurationTicks() { return endTick = startTick; }
+    public int getDurationTicks() { return endTick - startTick - 14; }
 
     public List<TickRecord> getTickRecords() {
         return Collections.unmodifiableList(tickRecords);
