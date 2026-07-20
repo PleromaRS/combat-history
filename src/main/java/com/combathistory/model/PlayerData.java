@@ -25,7 +25,7 @@ public class PlayerData {
 
     public String getTargetingString() {
         if (this.targeting == null) { return "None"; }
-        return this.targeting.getName();
+        return String.format("%s (Lvl %s)", targeting.getName(), targeting.getCombatLevel());
     }
 
     public List<NPC> getTargetedBy() { return this.targetedBy; }
@@ -35,7 +35,7 @@ public class PlayerData {
 
         List<String> npcNames = new ArrayList<>();
         for (NPC npc : this.targetedBy) {
-            npcNames.add(npc.getName());
+            npcNames.add(npc.getName() + String.format(" (Lvl %s)", npc.getCombatLevel()));
         }
         return npcNames.toString();
     }

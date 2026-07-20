@@ -65,7 +65,8 @@ public class CombatTracker {
             HitsplatData data = new HitsplatData(
                     isIncoming,
                     hitsplat.getAmount(),
-                    hitsplat.getHitsplatType()
+                    hitsplat.getHitsplatType(),
+                    event.getActor()
             );
 
             currentTickHitsplats.add(data);
@@ -108,22 +109,32 @@ public class CombatTracker {
 
         int relativeTick = client.getTickCount() - currentSession.getStartTick() + 1;
 
-        List<Integer> dealtAmounts = new ArrayList<>();
+        List<HitsplatData> dealtAmounts = new ArrayList<>();
         List<Integer> receivedAmounts = new ArrayList<>();
 
         for (HitsplatData h : currentTickHitsplats) {
             if (h.isIncoming()) {
                 receivedAmounts.add(h.getAmount());
             } else {
-                dealtAmounts.add(h.getAmount());
+                dealtAmounts.add(h);
             }
         }
 
-        String dealtStr = dealtAmounts.isEmpty() ? "[]" : dealtAmounts.toString();
+        // String dealtStr = dealtAmounts.isEmpty() ? "[]" : dealtAmounts.toString();
+        StringBuilder dealtStr = new StringBuilder("[ ");
+        if (dealtAmounts.isEmpty()) {
+            dealtStr = new StringBuilder("[]");
+        } else {
+            for (HitsplatData hit : dealtAmounts) {
+                dealtStr.append(String.format("[%d -> %s (Lvl %s)] ", hit.getAmount(), hit.getAppliedTo().getName(), hit.getAppliedTo().getCombatLevel()));
+            }
+            dealtStr.append("]");
+        }
+
         String receivedStr = receivedAmounts.isEmpty() ? "[]" : receivedAmounts.toString();
 
-        log.info(String.format("[Tick %2d] Dealt: %-6s | Received: %-6s | Current Target: %s | Targeting Player: %-6s",
-                relativeTick, dealtStr, receivedStr, playerData.getTargetingString(), playerData.getTargetedByString()));
+        log.info(String.format("[Tick %d] Dealt: %s | Received: %s | Targeting: %s | Targeted By: %s",
+                relativeTick, dealtStr.toString(), receivedAmounts.toString(), playerData.getTargetingString(), playerData.getTargetedByString()));
 
         TickRecord record = new TickRecord(client.getTickCount(), playerData.getTargetingString());
         for (HitsplatData h : currentTickHitsplats) {
