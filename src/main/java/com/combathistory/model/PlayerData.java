@@ -31,7 +31,7 @@ public class PlayerData {
     public List<NPC> getTargetedBy() { return this.targetedBy; }
 
     public String getTargetedByString() {
-        if (this.targetedBy.isEmpty()) return "[]";
+        if (this.targetedBy.isEmpty()) return "Nobody";
 
         List<String> npcNames = new ArrayList<>();
         for (NPC npc : this.targetedBy) {

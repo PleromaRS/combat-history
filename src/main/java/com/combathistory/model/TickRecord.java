@@ -12,13 +12,11 @@ import java.util.List;
  */
 public class TickRecord {
     private final int tickNumber;
-    private final String targetName;
     private final List<HitsplatData> hitsplats = new ArrayList<>();
     private final List<Actor> targetingPlayer = new ArrayList<>();
 
-    public TickRecord(int tickNumber, String targetName) {
+    public TickRecord(int tickNumber) {
         this.tickNumber = tickNumber;
-        this.targetName = targetName;
     }
 
     public void addHitsplat(HitsplatData hitsplat) {
@@ -26,7 +24,6 @@ public class TickRecord {
     }
 
     public int getTickNumber() { return tickNumber; }
-    public String getTargetName() { return targetName; }
 
     public List<HitsplatData> getHitsplats() {
         return Collections.unmodifiableList(hitsplats);

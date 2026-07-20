@@ -109,44 +109,71 @@ public class CombatTracker {
 
         int relativeTick = client.getTickCount() - currentSession.getStartTick() + 1;
 
-        List<HitsplatData> dealtAmounts = new ArrayList<>();
-        List<Integer> receivedAmounts = new ArrayList<>();
+        logGameTick(relativeTick, currentTickHitsplats);
 
-        for (HitsplatData h : currentTickHitsplats) {
-            if (h.isIncoming()) {
-                receivedAmounts.add(h.getAmount());
-            } else {
-                dealtAmounts.add(h);
-            }
-        }
-
-        // String dealtStr = dealtAmounts.isEmpty() ? "[]" : dealtAmounts.toString();
-        StringBuilder dealtStr = new StringBuilder("[ ");
-        if (dealtAmounts.isEmpty()) {
-            dealtStr = new StringBuilder("[]");
-        } else {
-            for (HitsplatData hit : dealtAmounts) {
-                dealtStr.append(String.format("[%d -> %s (Lvl %s)] ", hit.getAmount(), hit.getAppliedTo().getName(), hit.getAppliedTo().getCombatLevel()));
-            }
-            dealtStr.append("]");
-        }
-
-        String receivedStr = receivedAmounts.isEmpty() ? "[]" : receivedAmounts.toString();
-
-        log.info(String.format("[Tick %d] Dealt: %s | Received: %s | Targeting: %s | Targeted By: %s",
-                relativeTick, dealtStr.toString(), receivedAmounts.toString(), playerData.getTargetingString(), playerData.getTargetedByString()));
-
-        TickRecord record = new TickRecord(client.getTickCount(), playerData.getTargetingString());
+        TickRecord record = new TickRecord(client.getTickCount());
         for (HitsplatData h : currentTickHitsplats) {
             record.addHitsplat(h);
         }
 
         currentSession.addTickRecord(record);
+
+
         currentTickHitsplats.clear();
 
         if (ticksSinceLastAction >= COMBAT_TIMEOUT_TICKS) {
             endCombat();
         }
+    }
+
+    private void logGameTick(int relativeGameTick, List<HitsplatData> currentTickHitsplats) {
+        StringBuilder logStr = new StringBuilder(String.format("\n----- Tick %d -----\n", relativeGameTick));
+
+        // Target Information
+        logStr.append(String.format("Current Target: %s\n", playerData.getTargetingString()));
+        logStr.append((String.format("Targeted By: %s\n", playerData.getTargetedByString())));
+
+        // Hitsplats
+        List<HitsplatData> dealtAmounts = new ArrayList<>();
+        List<HitsplatData> receivedAmounts = new ArrayList<>();
+        for (HitsplatData h : currentTickHitsplats) {
+            if (h.isIncoming()) {
+                receivedAmounts.add(h);
+            } else {
+                dealtAmounts.add(h);
+            }
+        }
+
+        // Outgoing Damage Line
+        if (!dealtAmounts.isEmpty()) {
+            StringBuilder dealtStr = new StringBuilder();
+            for (int i=0; i < dealtAmounts.size(); i++) {
+                HitsplatData hit = dealtAmounts.get(i);
+                dealtStr.append(String.format("[%d -> %s (Lvl %s)]", hit.getAmount(), hit.getAppliedTo().getName(), hit.getAppliedTo().getCombatLevel()));
+                if (i != dealtAmounts.size() - 1) {
+                    dealtStr.append(", ");
+                }
+            }
+            logStr.append(String.format("Damage Dealt: %s\n", dealtStr.toString()));
+        }
+
+        // Incoming Damage Line
+        if (!receivedAmounts.isEmpty()) {
+            StringBuilder receivedStr = new StringBuilder();
+            for (int i = 0; i < receivedAmounts.size(); i++) {
+                HitsplatData hit = receivedAmounts.get(i);
+                receivedStr.append(String.format("[%d]", hit.getAmount()));
+                if (i != receivedAmounts.size() - 1) {
+                    receivedStr.append(", ");
+                }
+            }
+            logStr.append(String.format("Damage Received: %s\n", receivedStr.toString()));
+        }
+
+        logStr.append("--------------------");
+
+        // Log the entire thing
+        log.info(logStr.toString());
     }
 
     private void registerCombatAction() {
