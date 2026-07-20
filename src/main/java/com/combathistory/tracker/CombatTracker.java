@@ -43,6 +43,7 @@ public class CombatTracker {
         currentSession = null;
         ticksSinceLastAction = 0;
         currentTickHitsplats.clear();
+        playerData = null;
     }
 
     @Subscribe
@@ -54,7 +55,7 @@ public class CombatTracker {
         Hitsplat hitsplat = event.getHitsplat();
 
         boolean isIncoming = (actor == playerData.getLocalPlayer());
-        boolean isOutgoing = (actor == playerData.getTargeting()) && (hitsplat.isMine());
+        boolean isOutgoing = (actor != playerData.getLocalPlayer()) && (hitsplat.isMine());
 
         if (isIncoming || isOutgoing) {
             if (currentSession == null) {
@@ -75,23 +76,35 @@ public class CombatTracker {
 
     @Subscribe
     public void onGameTick(GameTick event) {
-        if (client.getLocalPlayer() == null) {
-            reset();
-            return;
-        }
+        Player localPlayer = client.getLocalPlayer();
 
-        if (this.playerData == null) {
-            this.playerData = new PlayerData(client.getLocalPlayer());
-        }
+        if (localPlayer == null) { reset(); return; }
 
+        if (this.playerData == null) { this.playerData = new PlayerData(localPlayer); }
 
         playerData.updateTargets(client);
 
-        if (currentSession == null) { return; }
+        Actor myTarget = playerData.getTargeting();
+        boolean iAmAttacking = (myTarget != null && myTarget.getHealthRatio() != -1);
+
+        boolean iAmBeingAttacked = false;
+
+        for (NPC npc: playerData.getTargetedBy()) {
+            if (npc.getHealthRatio() != -1) {
+                iAmBeingAttacked = true;
+                break;
+            }
+        }
+
+        boolean isActivelyInCombat = iAmAttacking || iAmBeingAttacked;
+
+        if (currentSession == null && isActivelyInCombat) {
+            registerCombatAction();
+        }
+
+        if (currentSession == null) { currentTickHitsplats.clear(); return; }
 
         ticksSinceLastAction++;
-
-        playerData.updateTargets(client);
 
         int relativeTick = client.getTickCount() - currentSession.getStartTick() + 1;
 
@@ -113,13 +126,11 @@ public class CombatTracker {
                 relativeTick, dealtStr, receivedStr, playerData.getTargetingString(), playerData.getTargetedByString()));
 
         TickRecord record = new TickRecord(client.getTickCount(), playerData.getTargetingString());
-
         for (HitsplatData h : currentTickHitsplats) {
             record.addHitsplat(h);
         }
 
         currentSession.addTickRecord(record);
-
         currentTickHitsplats.clear();
 
         if (ticksSinceLastAction >= COMBAT_TIMEOUT_TICKS) {
