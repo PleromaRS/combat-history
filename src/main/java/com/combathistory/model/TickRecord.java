@@ -1,5 +1,7 @@
 package com.combathistory.model;
 
+import net.runelite.api.Actor;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +14,7 @@ public class TickRecord {
     private final int tickNumber;
     private final String targetName;
     private final List<HitsplatData> hitsplats = new ArrayList<>();
+    private final List<Actor> targetingPlayer = new ArrayList<>();
 
     public TickRecord(int tickNumber, String targetName) {
         this.tickNumber = tickNumber;

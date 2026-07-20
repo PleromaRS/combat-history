@@ -4,14 +4,12 @@ import com.combathistory.events.CombatEndedEvent;
 import com.combathistory.events.CombatStartedEvent;
 import com.combathistory.model.CombatSession;
 import com.combathistory.model.HitsplatData;
+import com.combathistory.model.PlayerData;
 import com.combathistory.model.TickRecord;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Actor;
-import net.runelite.api.Client;
-import net.runelite.api.Hitsplat;
-import net.runelite.api.Player;
+import net.runelite.api.*;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.client.eventbus.EventBus;
@@ -30,6 +28,7 @@ public class CombatTracker {
     private final EventBus eventBus;
 
     private CombatSession currentSession;
+    private PlayerData playerData = null;
     private int ticksSinceLastAction = 0;
 
     private final List<HitsplatData> currentTickHitsplats = new ArrayList<>();
@@ -48,16 +47,14 @@ public class CombatTracker {
 
     @Subscribe
     public void onHitsplatApplied(HitsplatApplied event) {
-        Player localPlayer = client.getLocalPlayer();
-        if (localPlayer == null) return;
+        if (client.getLocalPlayer() == null) { return; }
+        if (this.playerData == null) { this.playerData = new PlayerData(client.getLocalPlayer()); }
 
         Actor actor = event.getActor();
-        Actor target = localPlayer.getInteracting();
-
         Hitsplat hitsplat = event.getHitsplat();
 
-        boolean isIncoming = (actor == localPlayer);
-        boolean isOutgoing = (actor == target) && (hitsplat.isMine());
+        boolean isIncoming = (actor == playerData.getLocalPlayer());
+        boolean isOutgoing = (actor == playerData.getTargeting()) && (hitsplat.isMine());
 
         if (isIncoming || isOutgoing) {
             if (currentSession == null) {
@@ -78,15 +75,23 @@ public class CombatTracker {
 
     @Subscribe
     public void onGameTick(GameTick event) {
-        if (currentSession == null) {
+        if (client.getLocalPlayer() == null) {
+            reset();
             return;
         }
 
+        if (this.playerData == null) {
+            this.playerData = new PlayerData(client.getLocalPlayer());
+        }
+
+
+        playerData.updateTargets(client);
+
+        if (currentSession == null) { return; }
+
         ticksSinceLastAction++;
 
-        Player localPlayer = client.getLocalPlayer();
-        Actor target = localPlayer.getInteracting();
-        String targetName = (target != null) ? target.getName() : "None";
+        playerData.updateTargets(client);
 
         int relativeTick = client.getTickCount() - currentSession.getStartTick() + 1;
 
@@ -104,10 +109,10 @@ public class CombatTracker {
         String dealtStr = dealtAmounts.isEmpty() ? "[]" : dealtAmounts.toString();
         String receivedStr = receivedAmounts.isEmpty() ? "[]" : receivedAmounts.toString();
 
-        log.info(String.format("[Tick %2d] Dealt: %-6s | Received: %-6s | Current Target: %s",
-                relativeTick, dealtStr, receivedStr, targetName));
+        log.info(String.format("[Tick %2d] Dealt: %-6s | Received: %-6s | Current Target: %s | Targeting Player: %-6s",
+                relativeTick, dealtStr, receivedStr, playerData.getTargetingString(), playerData.getTargetedByString()));
 
-        TickRecord record = new TickRecord(client.getTickCount(), targetName);
+        TickRecord record = new TickRecord(client.getTickCount(), playerData.getTargetingString());
 
         for (HitsplatData h : currentTickHitsplats) {
             record.addHitsplat(h);
@@ -133,6 +138,10 @@ public class CombatTracker {
     }
 
     public void endCombat() {
+        if (currentSession == null) {
+            return;
+        }
+
         currentSession.setEndTick(client.getTickCount());
         eventBus.post(new CombatEndedEvent(currentSession));
 
