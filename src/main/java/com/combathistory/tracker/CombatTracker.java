@@ -2,10 +2,7 @@ package com.combathistory.tracker;
 
 import com.combathistory.events.CombatEndedEvent;
 import com.combathistory.events.CombatStartedEvent;
-import com.combathistory.model.CombatSession;
-import com.combathistory.model.HitsplatData;
-import com.combathistory.model.PlayerData;
-import com.combathistory.model.TickRecord;
+import com.combathistory.model.*;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +25,10 @@ public class CombatTracker {
     private final EventBus eventBus;
 
     private CombatSession currentSession;
+
     private PlayerData playerData = null;
+    private NpcData npcData = null;
+
     private int ticksSinceLastAction = 0;
 
     private final List<HitsplatData> currentTickHitsplats = new ArrayList<>();
@@ -44,6 +44,7 @@ public class CombatTracker {
         ticksSinceLastAction = 0;
         currentTickHitsplats.clear();
         playerData = null;
+        npcData = null;
     }
 
     @Subscribe
@@ -82,15 +83,17 @@ public class CombatTracker {
         if (localPlayer == null) { reset(); return; }
 
         if (this.playerData == null) { this.playerData = new PlayerData(localPlayer); }
+        if (this.npcData == null) { this.npcData = new NpcData(client); }
 
-        playerData.updateTargets(client);
+        playerData.update();
+        npcData.update(client);
 
         Actor myTarget = playerData.getTargeting();
         boolean iAmAttacking = (myTarget != null && myTarget.getHealthRatio() != -1);
 
         boolean iAmBeingAttacked = false;
 
-        for (NPC npc: playerData.getTargetedBy()) {
+        for (NPC npc: npcData.getTargetingPlayer()) {
             if (npc.getHealthRatio() != -1) {
                 iAmBeingAttacked = true;
                 break;
@@ -130,8 +133,22 @@ public class CombatTracker {
         StringBuilder logStr = new StringBuilder(String.format("\n----- Tick %d -----\n", relativeGameTick));
 
         // Target Information
-        logStr.append(String.format("Current Target: %s\n", playerData.getTargetingString()));
-        logStr.append((String.format("Targeted By: %s\n", playerData.getTargetedByString())));
+        // Targeting
+        String targetingStr = (playerData.getTargeting() == null) ? "Nobody" : playerData.getTargeting().getName();
+        logStr.append(String.format("Current Target: %s\n", targetingStr));
+        // Targeted By
+        List<NPC> targetedBy = npcData.getTargetingPlayer();
+        StringBuilder targetedByStr = new StringBuilder();
+        if (targetedBy.isEmpty()) {
+            targetedByStr.append("Nobody");
+        } else {
+            for (int i = 0; i < targetedBy.size(); i++) {
+                NPC npc = targetedBy.get(i);
+                targetedByStr.append(String.format("%s (Lvl %d)", npc.getName(), npc.getCombatLevel()));
+                if (i != targetedBy.size() - 1) { targetedByStr.append(", "); }
+            }
+        }
+        logStr.append((String.format("Targeted By: %s\n", targetedByStr)));
 
         // Hitsplats
         List<HitsplatData> dealtAmounts = new ArrayList<>();
