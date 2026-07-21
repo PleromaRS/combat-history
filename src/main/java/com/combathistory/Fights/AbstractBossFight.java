@@ -11,10 +11,7 @@ import net.runelite.api.Hitsplat;
 import net.runelite.api.NPC;
 import net.runelite.api.Projectile;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public abstract class AbstractBossFight {
 
@@ -29,24 +26,37 @@ public abstract class AbstractBossFight {
     // The report for the current tick, populated by the subclass
      protected TickReport currentTickReport;
 
+    // Track seen projectiles to prevent duplicate logging
+    private Set<Projectile> seenProjectiles = new HashSet<>();
+
+    // Track current tick of the fight
+     protected int currentTick;
+
     // ----- INPUT HOOKS (Called by main plugin) -----
     // These catch the transient events and dump into the buffer
     public void onAnimationChanged(NPC npc, int animationId) {
-        eventBuffer.add(new AnimationEvent(npc, animationId));
+        if (isRelevantNpc(npc.getId())) {
+            eventBuffer.add(new AnimationEvent(npc, animationId));
+        }
     }
 
     public void onHitsplatApplied(NPC npc, Hitsplat hitsplat) {
-        eventBuffer.add(new HitsplatEvent(npc, hitsplat));
+        if (isRelevantNpc(npc.getId())) {
+            eventBuffer.add(new HitsplatEvent(npc, hitsplat));
+        }
     }
 
-    public void onProjectileSpawned(Projectile projectile) {
-        eventBuffer.add(new ProjectileEvent(projectile));
+    public void onProjectileMoved(Projectile projectile) {
+        if (isRelevantProjectile(projectile.getId()) && seenProjectiles.add(projectile)) {
+            eventBuffer.add(new ProjectileEvent(projectile));
+        }
     }
 
     // ----- LIFECYCLE (Called by main plugin each game tick) -----
     public final void onGameTick(int currentTick) {
         // Initialize a new report for this game tick
         // currentTickReport = new TickReport(currentTick);
+        this.currentTick = currentTick;
 
         // Subclass processes the transient events from the buffer
         processBufferedEvents();
@@ -61,6 +71,10 @@ public abstract class AbstractBossFight {
         eventBuffer.clear();
     }
 
+    protected void resetProjectileTracking() {
+        seenProjectiles.clear();
+    }
+
     // ----- ABSTRACT METHODS (Implemented by specific boss subclass) -----
     // Look through event buffer, translate IDs using private enums, figure out what transient actions occurred this tick
     protected abstract void processBufferedEvents();
@@ -70,6 +84,10 @@ public abstract class AbstractBossFight {
 
     // Take the data gathered from the buffer and the polled state and format it into the currentTickReport.
     protected abstract void buildTickReport();
+
+    // Subclass defines which NPCs and projectiles matter
+    protected abstract boolean isRelevantNpc(int npcId);
+    protected abstract boolean isRelevantProjectile(int projectileId);
 
     // ----- OUTPUT -----
     public TickReport getTickReport() {

@@ -7,6 +7,8 @@ public class HitsplatEvent extends RawEvent {
     private final NPC npc;
     private final Hitsplat hitsplat;
 
+    // TODO: Hitsplat type enum?
+
     public HitsplatEvent(NPC npc, Hitsplat hitsplat) {
         this.npc = npc;
         this.hitsplat = hitsplat;

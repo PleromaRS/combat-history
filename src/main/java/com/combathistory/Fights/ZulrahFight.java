@@ -1,8 +1,15 @@
 package com.combathistory.Fights;
 
 
+import com.combathistory.Events.AnimationEvent;
+import com.combathistory.Events.HitsplatEvent;
+import com.combathistory.Events.ProjectileEvent;
+import com.combathistory.Events.RawEvent;
+import net.runelite.api.Hitsplat;
 import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +18,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ZulrahFight extends AbstractBossFight {
+
+    private static final Logger log = LoggerFactory.getLogger(ZulrahFight.class);
 
     // ----- PRIVATE ENUMS -----
     private enum NPC_IDS {
@@ -106,13 +115,40 @@ public class ZulrahFight extends AbstractBossFight {
     private WorldPoint bossLocation;    // Polled from bossNpc.getWorldLocation()
 
     private int phase;                  // Which phase of the fight the boss is on
-    private int currentTick;            // Will increment each game tick
 
     // ----- IMPLEMENTATION OF ABSTRACT METHODS
     @Override
     protected void processBufferedEvents() {
         // Loop through the inherited 'eventBuffer'
+        for (RawEvent event : eventBuffer) {
+            if (event instanceof AnimationEvent) {
+                AnimationEvent animEvent = (AnimationEvent) event;
+                int animId = animEvent.getAnimationId();
+                NPC npc = animEvent.getNpc();
 
+                ANIMATION_IDS action = ANIMATION_IDS.fromId(animId);
+
+                // TODO: Handle different animation events if necessary.
+                if (action != null) {
+                    log.info(String.format("[Combat History][Tick: %d][Animation] %s: %s", currentTick, npc.getName(), action.getName()));
+                }
+             } else if (event instanceof HitsplatEvent) {
+                HitsplatEvent hitsplatEvent = (HitsplatEvent) event;
+                Hitsplat hitsplat = hitsplatEvent.getHitsplat();
+                NPC npc = hitsplatEvent.getNpc();
+                log.info(String.format("[Combat History][Tick: %d][Hitsplat] %s: %s, %d", currentTick, npc.getName(), hitsplat.getAmount(), hitsplat.getHitsplatType()));
+            } else if (event instanceof ProjectileEvent) {
+                ProjectileEvent projEvent = (ProjectileEvent) event;
+                int projId = projEvent.getProjectile().getId();
+
+                PROJECTILE_IDS projectile = PROJECTILE_IDS.fromId(projId);
+
+                // TODO: Handle different projectile events if necessary.
+                if (projectile != null) {
+                    log.info(String.format("[Combat History][Tick: %d][Projectile] %s", currentTick, projectile.getName()));
+                }
+            }
+        }
         // If AnimationEvent:
         //   - Translate ID using Animation enum
         //   - Update lastAttackAnimationId
@@ -156,6 +192,16 @@ public class ZulrahFight extends AbstractBossFight {
     }
 
     @Override
+    protected boolean isRelevantNpc(int npcId) {
+        return NPC_IDS.fromId(npcId) != null;
+    }
+
+    @Override
+    protected boolean isRelevantProjectile(int projectileId) {
+        return PROJECTILE_IDS.fromId(projectileId) != null;
+    }
+
+    @Override
     public boolean isBossNpc(int npcId) {
         NPC_IDS npc = NPC_IDS.fromId(npcId);
         return npc != null && npc.isBoss();
@@ -169,12 +215,11 @@ public class ZulrahFight extends AbstractBossFight {
     @Override
     public void init(NPC npc) {
         this.bossNpc = npc;
-
         this.activeMinions.clear();
         this.currentHp = -1;
         this.eventBuffer.clear();
-
         this.currentTick = 0;
+        resetProjectileTracking();
     }
 
     @Override
@@ -186,5 +231,6 @@ public class ZulrahFight extends AbstractBossFight {
         this.activeMinions.clear();
         this.eventBuffer.clear();
         this.currentTick = 0;
+        resetProjectileTracking();
     }
 }

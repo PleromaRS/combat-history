@@ -22,6 +22,7 @@ public class CombatHistory extends Plugin {
     @Inject
     private Client client;
 
+//    Caused an error, commented out until I need it
 //    @Inject
 //    private CombatHistoryConfig config;
 
@@ -106,7 +107,7 @@ public class CombatHistory extends Plugin {
     @Subscribe
     public void onProjectileMoved(ProjectileMoved event) {
         if (currentFight != null) {
-            currentFight.onProjectileSpawned(event.getProjectile());
+            currentFight.onProjectileMoved(event.getProjectile());
         }
     }
 
