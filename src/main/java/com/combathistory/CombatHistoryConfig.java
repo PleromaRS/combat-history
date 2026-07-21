@@ -9,10 +9,10 @@ public interface CombatHistoryConfig extends Config
 {
 	@ConfigItem(
 		keyName = "trackPerTickData",
-		name = "Tack Per-Tick Data",
+		name = "Track Per-Tick Data",
 		description = "Records HP and target every game tick during combat."
 	)
-	default boolean trackperTickData()
+	default boolean trackPerTickData()
 	{
 		return true;
 	}
