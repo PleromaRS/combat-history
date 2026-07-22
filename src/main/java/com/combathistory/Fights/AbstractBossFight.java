@@ -1,21 +1,19 @@
 package com.combathistory.Fights;
 
 
-import com.combathistory.Events.RawEvent;
-import com.combathistory.Events.AnimationEvent;
-import com.combathistory.Events.HitsplatEvent;
-import com.combathistory.Events.ProjectileEvent;
+import com.combathistory.Events.*;
 import com.combathistory.Reporting.TickReport;
 
-import net.runelite.api.Hitsplat;
-import net.runelite.api.NPC;
-import net.runelite.api.Projectile;
+import net.runelite.api.*;
+import net.runelite.api.coords.WorldPoint;
 
 import java.util.*;
 
 public abstract class AbstractBossFight {
 
     // ----- STATE -----
+    // Has the fight ended?
+    protected boolean fightEnded = false;
 
     // Tracks all currently alive NPCs (Boss + Minions). Key = NPC Index, Value = NPC ID
     protected Map<Integer, Integer> activeNpcs = new HashMap<>();
@@ -24,13 +22,19 @@ public abstract class AbstractBossFight {
     protected List<RawEvent> eventBuffer = new ArrayList<>();
 
     // The report for the current tick, populated by the subclass
-     protected TickReport currentTickReport;
+    protected TickReport currentTickReport;
+
+    // Track currently active minions
+    protected Set<NPC> activeMinions = new HashSet<>();
 
     // Track seen projectiles to prevent duplicate logging
-    private Set<Projectile> seenProjectiles = new HashSet<>();
+    protected Set<Projectile> seenProjectiles = new HashSet<>();
+
+    // Track currently present objects
+    protected Set<GameObject> activeObjects = new HashSet<>();
 
     // Track current tick of the fight
-     protected int currentTick;
+    protected int currentTick;
 
     // ----- INPUT HOOKS (Called by main plugin) -----
     // These catch the transient events and dump into the buffer
@@ -52,42 +56,70 @@ public abstract class AbstractBossFight {
         }
     }
 
-    // ----- LIFECYCLE (Called by main plugin each game tick) -----
-    public final void onGameTick(int currentTick) {
-        // Initialize a new report for this game tick
-        // currentTickReport = new TickReport(currentTick);
+    public void onGameObjectSpawned(GameObject gameObject) {
+        if (isRelevantObject(gameObject.getId()) && activeObjects.add(gameObject)) {
+            eventBuffer.add(new ObjectSpawnEvent(gameObject));
+        }
+    }
+
+    public void onGameObjectDespawned(GameObject gameObject) {
+        if (isRelevantObject(gameObject.getId()) && activeObjects.remove(gameObject)) {
+            eventBuffer.add(new ObjectDespawnEvent(gameObject));
+        }
+    }
+
+    public void onNpcSpawned(NPC npc) {
+        if (isRelevantNpc(npc.getId())) {
+            if (!isBossNpc(npc.getId())) {
+                activeMinions.add((npc));
+            }
+            eventBuffer.add(new NPCSpawnEvent(npc));
+        }
+    }
+
+    public void onNpcDespawned(NPC npc) {
+        if (isRelevantNpc(npc.getId())) {
+            if (!isBossNpc(npc.getId())) {
+                activeMinions.remove((npc));
+            }
+            eventBuffer.add(new NPCDespawnEvent(npc));
+        }
+    }
+
+    public void onChatMessage(ChatMessageType type, String name, String message) {
+        eventBuffer.add(new ChatMessageEvent(type, name, message));
+    }
+
+    // ----- LIFECYCLE -----
+    public final void onGameTick(int currentTick, Client client) {
+        // todo: Initialize a new report for this game tick
         this.currentTick = currentTick;
-
-        // Subclass processes the transient events from the buffer
         processBufferedEvents();
-
-        // Subclass checks persistent state (HP, Location, etc.)
         updatePolledState();
-
-        // Subclass combines everything into the final readable report
         buildTickReport();
-
-        // Clear the buffer for the next tick
         eventBuffer.clear();
     }
 
+    // ----- RESETS -----
     protected void resetProjectileTracking() {
         seenProjectiles.clear();
     }
 
+    protected void resetObjectTrackings() {
+        activeObjects.clear();
+    }
+
+    protected void resetActiveMinions() {
+        activeMinions.clear();
+    }
+
     // ----- ABSTRACT METHODS (Implemented by specific boss subclass) -----
-    // Look through event buffer, translate IDs using private enums, figure out what transient actions occurred this tick
     protected abstract void processBufferedEvents();
-
-    // Poll the game client for persistent states (HP, location etc.), active minions, and current phase.
     protected abstract void updatePolledState();
-
-    // Take the data gathered from the buffer and the polled state and format it into the currentTickReport.
     protected abstract void buildTickReport();
-
-    // Subclass defines which NPCs and projectiles matter
     protected abstract boolean isRelevantNpc(int npcId);
     protected abstract boolean isRelevantProjectile(int projectileId);
+    protected abstract  boolean isRelevantObject(int objectId);
 
     // ----- OUTPUT -----
     public TickReport getTickReport() {
@@ -95,15 +127,14 @@ public abstract class AbstractBossFight {
     }
 
     // ----- BOSS DETECTION -----
-    // Returns true if given NPC ID is a boss form. Used by main plugin to detect when to start tracking a fight.
     public abstract boolean isBossNpc(int npcId);
-
-    // Returns the name of the boss for logging purposes
     public abstract String getBossName();
 
-    // Called by the main plugin when the boss NPC spawns. Used to capture the NPC reference for polling and reset internal state.
-    public abstract void init(NPC bossNpc);
+    public abstract boolean checkStartConditions(Client client);
+    public abstract void init(Client client);
+    public abstract void endFight(String durationMessage);
 
-    // Called to end a fight when the death animation is detected
-    public abstract void endFight();
+    public boolean isFightEnded() {
+        return fightEnded;
+    }
 }

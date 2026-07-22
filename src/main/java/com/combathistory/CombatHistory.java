@@ -50,43 +50,21 @@ public class CombatHistory extends Plugin {
         log.info("Combat History stopped");
     }
 
-    // --- BOSS DETECTION ---
+    // --- EVENT ROUTING (Forward transient events to the active fight) ---
 
     @Subscribe
     public void onNpcSpawned(NpcSpawned event) {
-        NPC npc = event.getNpc();
-
-        // If we don't have an active fight, check if this NPC is a boss we track
-        if (currentFight == null) {
-            for (AbstractBossFight boss : registeredBosses) {
-                if (boss.isBossNpc(npc.getId())) {
-                    fightStartTick = client.getTickCount();
-
-                    currentFight = boss;
-                    currentFight.init(npc);
-                    // playerTracker.init();
-                    log.info("Fight Started: " + boss.getBossName());
-                    break;
-                }
-            }
+        if (currentFight != null) {
+            currentFight.onNpcSpawned(event.getNpc());
         }
     }
 
     @Subscribe
     public void onNpcDespawned(NpcDespawned event) {
-        NPC npc = event.getNpc();
-
-        // If the boss despawns (dies or player leaves), stop tracking
-        if (currentFight != null && currentFight.isBossNpc(npc.getId())) {
-            currentFight.endFight();
-            // playerTracker.endFight();
-            log.info("Fight Ended: " + currentFight.getBossName());
-            currentFight = null;
-            fightStartTick = -1;
+        if (currentFight != null) {
+            currentFight.onNpcDespawned(event.getNpc());
         }
     }
-
-    // --- EVENT ROUTING (Forward transient events to the active fight) ---
 
     @Subscribe
     public void onAnimationChanged(AnimationChanged event) {
@@ -111,28 +89,53 @@ public class CombatHistory extends Plugin {
         }
     }
 
-    // --- GAME TICK (Process and output) ---
+    @Subscribe
+    public void onGameObjectSpawned(GameObjectSpawned event) {
+        if (currentFight != null) {
+            currentFight.onGameObjectSpawned(event.getGameObject());
+        }
+    }
+
+    @Subscribe
+    public void onGameObjectDespawned(GameObjectDespawned event) {
+        if (currentFight != null) {
+            currentFight.onGameObjectDespawned(event.getGameObject());
+        }
+    }
+
+    @Subscribe
+    public void onChatMessage(ChatMessage event) {
+        if (currentFight != null) {
+            currentFight.onChatMessage(event.getType(), event.getName(), event.getMessage());
+        }
+    }
+
+    // --- GAME TICK ---
 
     @Subscribe
     public void onGameTick(GameTick event) {
+        int globalTick = client.getTickCount();
+
         if (currentFight != null) {
-            int globalTick = client.getTickCount();
-            int relativeTick = globalTick - fightStartTick;
+            if (currentFight.isFightEnded()) {
+                currentFight = null;
+                fightStartTick = -1;
+            } else {
+                int relativeTick = globalTick - fightStartTick;
+                currentFight.onGameTick(relativeTick, client);
+                // playerTracker.onGameTick(relativeTick, client);
+            }
 
-            // Tell the boss fight to process everything
-            currentFight.onGameTick(relativeTick);
-            // playerTracker.onGameTick(relativeTick);
 
-            // Merge their outputs into one unified report
-//            TickReport report = new TickReport();
-//            report.relativeTick = relativeTick;
-//            report.bossState = currentFight.getBossSnapshot();
-//            report.bossEvents = currentFight.getTickEvents();
-//            report.playerState = playerTracker.getPlayerSnapshot();
-//            report.playerEvents = playerTracker.getTickEvents();
-//
-//            // Output (to file, UI, or buffer for end-of-fight upload)
-//            outputReport(report);
+        } else {
+            for (AbstractBossFight boss: registeredBosses) {
+                if (boss.checkStartConditions(client)) {
+                    currentFight = boss;
+                    fightStartTick = globalTick;
+                    currentFight.init(client);
+                    break;
+                }
+            }
         }
     }
 
